@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 require('dotenv').config();
+const stripe = require("stripe")(process.env.DP_STRIPE_SECRET);
 const { listen } = require('express/lib/application');
 const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000;
@@ -41,6 +42,7 @@ async function run() {
         const bookingCollection = client.db('doctors-portal').collection('bookings');
         const userCollection = client.db('doctors-portal').collection('users');
         const doctorCollection = client.db('doctors-portal').collection('doctors');
+        const paymentCollection = client.db('doctors-portal').collection('payments');
 
         const verifyAdmin = async (req, res, next) => {
             const requesterEmail = req.decoded.email;
@@ -83,6 +85,14 @@ async function run() {
                 const sendData = await bookingCollection.findOne({ _id: ObjectId(id) })
                 return res.send({ success: true, booking: sendData })
             }
+        })
+
+
+        // get single booking
+        app.get('/bookings/:id', verifyJwt, async (req, res) => {
+            const id = req.params.id;
+            const booking = await bookingCollection.findOne({ _id: ObjectId(id) })
+            res.send(booking)
         })
 
 
@@ -175,6 +185,36 @@ async function run() {
         app.delete('/doctors/:email', verifyJwt, verifyAdmin, async (req, res) => {
             const email = req.params.email;
             const result = await doctorCollection.deleteOne({ email: email })
+            res.send(result)
+        })
+
+        // stripe payment intent api
+        app.post('/payment-intent', verifyJwt, async (req, res) => {
+            const service = req.body;
+            const price = service.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            })
+            res.send({ clientSecret: paymentIntent.client_secret })
+        })
+
+        // update bookings
+        app.patch('/bookings/:id', verifyJwt, async (req, res) => {
+            const id = req.params.id;
+            const body = req.body
+            const filter = { _id: ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    paid: true,
+                    transectionId: body.transectionId,
+                    amount: body.amount
+                }
+            }
+            const result = await bookingCollection.updateOne(filter, updatedDoc)
+            const payments = await paymentCollection.insertOne(updatedDoc)
             res.send(result)
         })
 
