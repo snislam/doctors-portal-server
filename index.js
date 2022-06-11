@@ -43,6 +43,7 @@ async function run() {
         const userCollection = client.db('doctors-portal').collection('users');
         const doctorCollection = client.db('doctors-portal').collection('doctors');
         const paymentCollection = client.db('doctors-portal').collection('payments');
+        const projectCollection = client.db('doctors-portal').collection('projects');
 
         const verifyAdmin = async (req, res, next) => {
             const requesterEmail = req.decoded.email;
@@ -54,6 +55,27 @@ async function run() {
                 return res.status(403).send({ message: 'forbidden' })
             }
         }
+
+        /* ----------------------------------
+            This api are for portfolio start
+        ------------------------------------*/
+
+        app.get('/projects', async (req, res) => {
+            const projects = await projectCollection.find({}).toArray();
+            res.send(projects)
+        })
+
+        app.get('/project/:id', async (req, res) => {
+            const id = req.params.id;
+            const project = await projectCollection.findOne({ _id: ObjectId(id) })
+            res.send(project)
+        })
+
+
+        /* ----------------------------------
+            This api are for portfolio end
+        ------------------------------------*/
+
 
         // get service data
         app.get('/services', async (req, res) => {
